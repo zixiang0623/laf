@@ -50,11 +50,11 @@ elseif(APPLE)
       gl/gl_context_nsgl.mm)
   endif()
 elseif(EMSCRIPTEN)
-  # Milestone 0: no dedicated wasm backend yet. Fall back to the
-  # "none" stub (already pulled in via LAF_OS_SOURCES above) so that
-  # laf-base/laf-gfx/laf-os configure and link under Emscripten
-  # without requiring X11. A real os/wasm backend (window + input +
-  # canvas surface) replaces this branch later.
+  # Milestone 1: real (if minimal) window/surface backend, using
+  # SDL2 (Emscripten's built-in port, linked via -sUSE_SDL=2 below)
+  # for the actual <canvas> and a plain software Surface (no Skia).
+  list(APPEND LAF_OS_SOURCES
+    wasm/system.cpp)
 else()
   list(APPEND LAF_OS_SOURCES
     x11/dnd.cpp
@@ -138,8 +138,10 @@ elseif(APPLE)
     # Use Automatic Reference Counting
     -fobjc-arc)
 elseif(EMSCRIPTEN)
-  # Milestone 0: nothing to link, laf-os is built from the "none"
+  # Milestone 1: nothing to link, laf-os is built from the "none"
   # stub only (see LAF_OS_SOURCES above).
+  target_compile_options(laf-os PUBLIC -sUSE_SDL=2)
+  target_link_options(laf-os PUBLIC -sUSE_SDL=2)
 else()
   find_package(Threads REQUIRED)
   list(APPEND LAF_OS_PLATFORM_LIBS ${CMAKE_THREAD_LIBS_INIT})
@@ -184,6 +186,17 @@ endif()
 set(LAF_BACKEND_LINK_FLAGS "${_LAF_BACKEND_INITIAL_LINK_FLAGS}"
   CACHE STRING "Extra flags to link an application that uses laf-os")
 mark_as_advanced(LAF_BACKEND_LINK_FLAGS)
+
+if(EMSCRIPTEN)
+  # Milestone 1 smoke test: prove pixels reach an actual browser
+  # <canvas>. Deliberately not using laf_add_example() from
+  # examples/CMakeLists.txt since that always links laf-text
+  # (fonts), which isn't wasm-ready yet.
+  add_executable(laf-wasm-smoketest wasm/smoketest_main.cpp)
+  target_link_libraries(laf-wasm-smoketest laf-os laf-gfx laf-base)
+  set_target_properties(laf-wasm-smoketest PROPERTIES
+    LINK_FLAGS "-sUSE_SDL=2 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0")
+endif()
 
 if(LAF_WITH_TESTS)
   laf_find_tests(. laf-os)

@@ -70,6 +70,9 @@ public:
 #if LAF_LINUX
   [[nodiscard]] static SystemRef makeX11();
 #endif
+#if defined(__EMSCRIPTEN__)
+  [[nodiscard]] static SystemRef makeWasm();
+#endif
 #if LAF_SKIA
   [[nodiscard]] static SystemRef makeSkia();
 #endif
