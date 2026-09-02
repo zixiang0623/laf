@@ -49,6 +49,12 @@ elseif(APPLE)
       osx/window.mm
       gl/gl_context_nsgl.mm)
   endif()
+elseif(EMSCRIPTEN)
+  # Milestone 0: no dedicated wasm backend yet. Fall back to the
+  # "none" stub (already pulled in via LAF_OS_SOURCES above) so that
+  # laf-base/laf-gfx/laf-os configure and link under Emscripten
+  # without requiring X11. A real os/wasm backend (window + input +
+  # canvas surface) replaces this branch later.
 else()
   list(APPEND LAF_OS_SOURCES
     x11/dnd.cpp
@@ -131,6 +137,9 @@ elseif(APPLE)
     -Werror=inconsistent-missing-override
     # Use Automatic Reference Counting
     -fobjc-arc)
+elseif(EMSCRIPTEN)
+  # Milestone 0: nothing to link, laf-os is built from the "none"
+  # stub only (see LAF_OS_SOURCES above).
 else()
   find_package(Threads REQUIRED)
   list(APPEND LAF_OS_PLATFORM_LIBS ${CMAKE_THREAD_LIBS_INIT})
