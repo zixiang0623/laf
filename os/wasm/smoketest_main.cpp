@@ -25,7 +25,7 @@ void main_loop()
   g_window->invalidateRegion(gfx::Region(surf->bounds()));
 }
 
-int main()
+int app_main(int argc, char* argv[])
 {
   os::SystemRef system = os::System::make();
   system->setAppName("aseprite-wasm-milestone1");
