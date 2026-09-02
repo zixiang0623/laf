@@ -14,23 +14,23 @@ class SystemWasm : public CommonSystem {
 public:
   Ref<Window> makeWindow(const WindowSpec& spec) override
   {
-    return make_ref<WindowWasm>(spec);
+    return os::make_ref<WindowWasm>(spec);
   }
 
   Ref<Surface> makeSurface(int width, int height, const os::ColorSpaceRef& cs) override
   {
-    return make_ref<SurfaceWasm>(width, height, cs);
+    return os::make_ref<SurfaceWasm>(width, height, cs);
   }
 
   Ref<Surface> makeRgbaSurface(int width, int height, const os::ColorSpaceRef& cs) override
   {
-    return make_ref<SurfaceWasm>(width, height, cs);
+    return os::make_ref<SurfaceWasm>(width, height, cs);
   }
 };
 
 SystemRef System::makeWasm()
 {
-  return make_ref<SystemWasm>();
+  return os::make_ref<SystemWasm>();
 }
 
 } // namespace os
