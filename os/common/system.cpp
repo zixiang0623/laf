@@ -55,7 +55,7 @@ SystemRef System::make()
 #elif LAF_MACOS
   if (!ref)
     ref = System::makeOSX();
-#elif LAF_LINUX
+#elif LAF_LINUX && !defined(__EMSCRIPTEN__)
   if (!ref)
     ref = System::makeX11();
 #endif

@@ -16,6 +16,8 @@
   #include <windows.h>
 #elif LAF_MACOS
   #include "os/osx/app.h"
+#elif defined(__EMSCRIPTEN__)
+  // Milestone 0: no wasm equivalent of os::X11/AppOSX yet.
 #elif LAF_LINUX
   #include "os/x11/x11.h"
 #endif
@@ -63,6 +65,8 @@ int main(int argc, char* argv[])
   os::AppOSX app;
   if (!app.init())
     return 1;
+#elif defined(__EMSCRIPTEN__)
+  // Milestone 0: nothing to initialize yet.
 #elif LAF_LINUX
   const os::X11 x11;
 #endif
