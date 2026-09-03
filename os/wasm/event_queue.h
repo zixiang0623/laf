@@ -4,12 +4,14 @@
 // This file is released under the terms of the MIT license.
 // Read LICENSE.txt for more information.
 //
-// Minimal EventQueueImpl for Emscripten builds. No real event
-// source is wired up yet (no window, no input) -- this only exists
-// so that os/common/event_queue.cpp has something to instantiate
-// and the library links. A real implementation will push events
-// from JS (mouse/keyboard/resize) via emscripten_set_*_callback
-// once the actual os/wasm window backend exists.
+// EventQueueImpl for Emscripten builds. Milestone 2: real input
+// now flows through here. SDL2 (via Emscripten's port) delivers
+// mouse/keyboard/window events; WindowWasm::pumpEvents() drains
+// SDL's queue each time we're asked for an event, translates each
+// SDL event into an os::Event, and pushes it via queueEvent() --
+// same architecture as os/win's message pump living inside
+// getEvent(), just non-blocking since a browser tab can't block its
+// main thread waiting for input the way GetMessage() can.
 
 #ifndef OS_WASM_EVENT_QUEUE_INCLUDED
 #define OS_WASM_EVENT_QUEUE_INCLUDED
@@ -18,6 +20,7 @@
 #include "base/concurrent_queue.h"
 #include "os/event.h"
 #include "os/event_queue.h"
+#include "os/wasm/window.h"
 
 namespace os {
 
@@ -27,8 +30,13 @@ public:
 
   void getEvent(Event& ev, double timeout) override
   {
-    // Milestone 0: no blocking/timeout wait yet, just drain
-    // whatever's queued (there's nothing pushing events in yet).
+    // Pull in whatever SDL has queued (mouse/keyboard/window
+    // events) since the last call, translated into os::Events by
+    // WindowWasm. Non-blocking regardless of timeout: the browser's
+    // event loop already paces us via emscripten_set_main_loop, so
+    // there's nothing to usefully wait on here.
+    WindowWasm::pumpEvents();
+
     if (!m_events.try_pop(ev))
       ev = Event();
   }

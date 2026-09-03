@@ -14,11 +14,15 @@
 #define OS_WASM_WINDOW_INCLUDED
 #pragma once
 
+#include "os/event.h"
+#include "os/wasm/keys.h"
 #include "os/wasm/surface.h"
 #include "os/window.h"
 #include "os/window_spec.h"
 
 #include <SDL2/SDL.h>
+
+#include <unordered_map>
 
 namespace os {
 
@@ -43,16 +47,66 @@ public:
                                       m_width,
                                       m_height);
     m_surface = os::make_ref<SurfaceWasm>(m_width, m_height, os::ColorSpaceRef());
+
+    // Milestone 2: register so pumpEvents() can route SDL events
+    // (which carry an SDL windowID) back to this instance.
+    s_windows[SDL_GetWindowID(m_sdlWindow)] = this;
   }
 
   ~WindowWasm()
   {
+    s_windows.erase(SDL_GetWindowID(m_sdlWindow));
     if (m_sdlTexture)
       SDL_DestroyTexture(m_sdlTexture);
     if (m_sdlRenderer)
       SDL_DestroyRenderer(m_sdlRenderer);
     if (m_sdlWindow)
       SDL_DestroyWindow(m_sdlWindow);
+  }
+
+  // Milestone 2: drains every pending SDL event (mouse/keyboard/
+  // window) and translates+queues each one as an os::Event via the
+  // matching WindowWasm (looked up by SDL windowID). Called once
+  // per getEvent() poll from EventQueueWasm -- see os/wasm/event_queue.h.
+  static void pumpEvents()
+  {
+    SDL_Event e;
+    while (SDL_PollEvent(&e)) {
+      switch (e.type) {
+        case SDL_QUIT:
+          // No windowID on SDL_QUIT: tell every window we know about.
+          for (auto& it : s_windows) {
+            Event ev;
+            ev.setType(Event::CloseWindow);
+            it.second->queueEvent(ev);
+          }
+          break;
+        case SDL_WINDOWEVENT:
+          if (auto* w = find(e.window.windowID))
+            w->handleSDLWindowEvent(e.window);
+          break;
+        case SDL_MOUSEMOTION:
+          if (auto* w = find(e.motion.windowID))
+            w->handleSDLMouseMotion(e.motion);
+          break;
+        case SDL_MOUSEBUTTONDOWN:
+        case SDL_MOUSEBUTTONUP:
+          if (auto* w = find(e.button.windowID))
+            w->handleSDLMouseButton(e.button);
+          break;
+        case SDL_MOUSEWHEEL:
+          if (auto* w = find(e.wheel.windowID))
+            w->handleSDLMouseWheel(e.wheel);
+          break;
+        case SDL_KEYDOWN:
+        case SDL_KEYUP:
+          if (auto* w = find(e.key.windowID))
+            w->handleSDLKey(e.key);
+          break;
+        default:
+          break;
+      }
+    }
   }
 
   gfx::Rect frame() const override { return gfx::Rect(0, 0, m_width, m_height); }
@@ -116,12 +170,137 @@ public:
   }
 
 private:
+  static WindowWasm* find(Uint32 sdlWindowId)
+  {
+    auto it = s_windows.find(sdlWindowId);
+    return (it != s_windows.end() ? it->second : nullptr);
+  }
+
+  void handleSDLMouseMotion(const SDL_MouseMotionEvent& e)
+  {
+    Event ev;
+    ev.setType(Event::MouseMove);
+    ev.setPosition(gfx::Point(e.x, e.y));
+    ev.setModifiers(sdl_modstate_to_os(SDL_GetModState()));
+    ev.setPointerType(PointerType::Mouse);
+    queueEvent(ev);
+  }
+
+  void handleSDLMouseButton(const SDL_MouseButtonEvent& e)
+  {
+    Event ev;
+    const bool isDown = (e.type == SDL_MOUSEBUTTONDOWN);
+    ev.setType(isDown && e.clicks >= 2 ? Event::MouseDoubleClick :
+               isDown                  ? Event::MouseDown :
+                                          Event::MouseUp);
+    ev.setPosition(gfx::Point(e.x, e.y));
+    ev.setButton(sdl_button_to_os(e.button));
+    ev.setModifiers(sdl_modstate_to_os(SDL_GetModState()));
+    ev.setPointerType(PointerType::Mouse);
+    queueEvent(ev);
+  }
+
+  void handleSDLMouseWheel(const SDL_MouseWheelEvent& e)
+  {
+    Event ev;
+    ev.setType(Event::MouseWheel);
+    int mx = 0, my = 0;
+    SDL_GetMouseState(&mx, &my);
+    ev.setPosition(gfx::Point(mx, my));
+    gfx::Point delta(e.x, e.y);
+    if (e.direction == SDL_MOUSEWHEEL_FLIPPED) {
+      delta.x = -delta.x;
+      delta.y = -delta.y;
+    }
+    ev.setWheelDelta(delta);
+    ev.setModifiers(sdl_modstate_to_os(SDL_GetModState()));
+    ev.setPointerType(PointerType::Mouse);
+    queueEvent(ev);
+  }
+
+  void handleSDLKey(const SDL_KeyboardEvent& e)
+  {
+    Event ev;
+    ev.setType(e.type == SDL_KEYDOWN ? Event::KeyDown : Event::KeyUp);
+    ev.setScancode(sdl_scancode_to_os(e.keysym.scancode));
+    ev.setModifiers(sdl_modstate_to_os(e.keysym.mod));
+    ev.setRepeat(e.repeat);
+    // TODO(milestone 3+): wire up SDL_TEXTINPUT for proper Unicode
+    // text entry (needed for IME / non-ASCII typing); scancode-only
+    // is enough to prove the input pipeline for now.
+    queueEvent(ev);
+  }
+
+  void handleSDLWindowEvent(const SDL_WindowEvent& e)
+  {
+    switch (e.event) {
+      case SDL_WINDOWEVENT_CLOSE: {
+        Event ev;
+        ev.setType(Event::CloseWindow);
+        queueEvent(ev);
+        break;
+      }
+      case SDL_WINDOWEVENT_SIZE_CHANGED:
+      case SDL_WINDOWEVENT_RESIZED: {
+        resizeBuffers(e.data1, e.data2);
+        Event ev;
+        ev.setType(Event::ResizeWindow);
+        queueEvent(ev);
+        break;
+      }
+      case SDL_WINDOWEVENT_ENTER: {
+        Event ev;
+        ev.setType(Event::MouseEnter);
+        queueEvent(ev);
+        break;
+      }
+      case SDL_WINDOWEVENT_LEAVE: {
+        Event ev;
+        ev.setType(Event::MouseLeave);
+        queueEvent(ev);
+        break;
+      }
+      case SDL_WINDOWEVENT_FOCUS_GAINED: {
+        Event ev;
+        ev.setType(Event::WindowEnter);
+        queueEvent(ev);
+        break;
+      }
+      case SDL_WINDOWEVENT_FOCUS_LOST: {
+        Event ev;
+        ev.setType(Event::WindowLeave);
+        queueEvent(ev);
+        break;
+      }
+      default: break;
+    }
+  }
+
+  // Recreates the SDL texture and the software surface to match a
+  // new canvas size. SurfaceWasm has no in-place resize, so we just
+  // swap in a fresh one -- whatever was painted before is lost,
+  // same as any other backend after a resize.
+  void resizeBuffers(int w, int h)
+  {
+    if (w <= 0 || h <= 0 || (w == m_width && h == m_height))
+      return;
+    m_width = w;
+    m_height = h;
+    if (m_sdlTexture)
+      SDL_DestroyTexture(m_sdlTexture);
+    m_sdlTexture = SDL_CreateTexture(
+      m_sdlRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, m_width, m_height);
+    m_surface = os::make_ref<SurfaceWasm>(m_width, m_height, os::ColorSpaceRef());
+  }
+
   int m_width, m_height, m_scale;
   std::string m_title;
   os::Ref<SurfaceWasm> m_surface;
   SDL_Window* m_sdlWindow = nullptr;
   SDL_Renderer* m_sdlRenderer = nullptr;
   SDL_Texture* m_sdlTexture = nullptr;
+
+  static inline std::unordered_map<Uint32, WindowWasm*> s_windows;
 };
 
 } // namespace os
