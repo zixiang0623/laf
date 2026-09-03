@@ -1,24 +1,29 @@
-// Milestone 1 smoke test (base rendering) + milestone 2 (real
-// input): paints a rectangle to prove pixels reach the browser
-// <canvas>, and now also drains os::EventQueue every frame to prove
-// mouse/keyboard/window events actually flow end-to-end from the
-// browser through SDL2 into os::Event. Deliberately does not link
-// laf-text (fonts are a later milestone).
+// Milestone 1 (base rendering) + milestone 2 (mouse/keyboard/window
+// input) + milestone 3 (real Unicode text via SDL_TEXTINPUT/IME):
+// paints a rectangle to prove pixels reach the browser <canvas>,
+// and drains os::EventQueue every frame to prove input flows
+// end-to-end from the browser through SDL2 into os::Event.
+// Deliberately does not link laf-text (fonts are a later
+// milestone), so typed text is only visible via the console for now.
 //
-// Visible proof of milestone 2: a small square follows the mouse,
-// the inner panel's color cycles on each click, and key presses are
-// logged to the browser console (F12 devtools).
+// Visible proof: a small square follows the mouse, the inner
+// panel's color cycles on each click, physical key presses are
+// logged as scancodes, and typed Unicode text (including non-ASCII,
+// if you switch your OS/browser input method) is logged separately
+// and accumulated into a running string.
 
 #include "gfx/rect.h"
 #include "os/os.h"
 
 #include <cstdio>
 #include <emscripten.h>
+#include <string>
 
 namespace {
 os::WindowRef g_window;
 gfx::Point g_mousePos(-100, -100); // off-surface until we get a real move
 int g_clickCount = 0;
+std::string g_typedText;
 }
 
 void main_loop()
@@ -35,9 +40,20 @@ void main_loop()
       case os::Event::MouseMove: g_mousePos = ev.position(); break;
       case os::Event::MouseDown: g_clickCount++; break;
       case os::Event::KeyDown:
-        std::printf("[wasm-milestone2] KeyDown scancode=%d mods=%d\n",
-                    int(ev.scancode()),
-                    int(ev.modifiers()));
+        if (ev.unicodeChar() != 0) {
+          // Milestone 3: this KeyDown came from SDL_TEXTINPUT --
+          // real composed Unicode text, not a raw physical key.
+          g_typedText += ev.unicodeCharAsUtf8();
+          std::printf("[wasm-milestone3] TextInput char=U+%04X \"%s\" buffer=\"%s\"\n",
+                      unsigned(ev.unicodeChar()),
+                      ev.unicodeCharAsUtf8().c_str(),
+                      g_typedText.c_str());
+        }
+        else {
+          std::printf("[wasm-milestone2] KeyDown scancode=%d mods=%d\n",
+                      int(ev.scancode()),
+                      int(ev.modifiers()));
+        }
         break;
       case os::Event::CloseWindow: emscripten_cancel_main_loop(); return;
       default: break;
@@ -67,7 +83,7 @@ void main_loop()
 int app_main(int argc, char* argv[])
 {
   os::SystemRef system = os::System::make();
-  system->setAppName("aseprite-wasm-milestone2");
+  system->setAppName("aseprite-wasm-milestone3");
 
   os::WindowSpec spec;
   spec.contentRect(gfx::Rect(0, 0, 400, 300));

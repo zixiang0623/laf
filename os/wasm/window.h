@@ -14,6 +14,7 @@
 #define OS_WASM_WINDOW_INCLUDED
 #pragma once
 
+#include "base/utf8_decode.h"
 #include "os/event.h"
 #include "os/wasm/keys.h"
 #include "os/wasm/surface.h"
@@ -22,6 +23,7 @@
 
 #include <SDL2/SDL.h>
 
+#include <string>
 #include <unordered_map>
 
 namespace os {
@@ -48,6 +50,11 @@ public:
                                       m_height);
     m_surface = os::make_ref<SurfaceWasm>(m_width, m_height, os::ColorSpaceRef());
 
+    // Milestone 3: turn on IME/text composition so we get
+    // SDL_TEXTINPUT events (proper Unicode text, not just raw
+    // scancodes) for typing.
+    SDL_StartTextInput();
+
     // Milestone 2: register so pumpEvents() can route SDL events
     // (which carry an SDL windowID) back to this instance.
     s_windows[SDL_GetWindowID(m_sdlWindow)] = this;
@@ -55,6 +62,7 @@ public:
 
   ~WindowWasm()
   {
+    SDL_StopTextInput();
     s_windows.erase(SDL_GetWindowID(m_sdlWindow));
     if (m_sdlTexture)
       SDL_DestroyTexture(m_sdlTexture);
@@ -102,6 +110,10 @@ public:
         case SDL_KEYUP:
           if (auto* w = find(e.key.windowID))
             w->handleSDLKey(e.key);
+          break;
+        case SDL_TEXTINPUT:
+          if (auto* w = find(e.text.windowID))
+            w->handleSDLTextInput(e.text);
           break;
         default:
           break;
@@ -225,10 +237,35 @@ private:
     ev.setScancode(sdl_scancode_to_os(e.keysym.scancode));
     ev.setModifiers(sdl_modstate_to_os(e.keysym.mod));
     ev.setRepeat(e.repeat);
-    // TODO(milestone 3+): wire up SDL_TEXTINPUT for proper Unicode
-    // text entry (needed for IME / non-ASCII typing); scancode-only
-    // is enough to prove the input pipeline for now.
+    // Unicode text for this key (if any) arrives separately via
+    // SDL_TEXTINPUT -- see handleSDLTextInput() below -- since IME
+    // composition means the two aren't always 1:1 with this
+    // physical key-down/up pair.
     queueEvent(ev);
+  }
+
+  // Milestone 3: SDL_TEXTINPUT carries the actual composed Unicode
+  // text (UTF-8, up to 32 bytes) for a keystroke -- this is what
+  // handles IME, dead keys, and non-ASCII layouts correctly, unlike
+  // trying to derive a character from the scancode ourselves. We
+  // queue one KeyDown per code point, scancode-less (kKeyNil),
+  // matching how other laf backends carry unicodeChar() on a
+  // KeyDown that consumers check independently of scancode() for
+  // shortcut handling vs. text entry.
+  void handleSDLTextInput(const SDL_TextInputEvent& e)
+  {
+    base::utf8_decode dec{ std::string(e.text) };
+    for (;;) {
+      const base::codepoint_t cp = dec.next();
+      if (cp == 0)
+        break;
+      Event ev;
+      ev.setType(Event::KeyDown);
+      ev.setScancode(kKeyNil);
+      ev.setUnicodeChar(cp);
+      ev.setModifiers(sdl_modstate_to_os(SDL_GetModState()));
+      queueEvent(ev);
+    }
   }
 
   void handleSDLWindowEvent(const SDL_WindowEvent& e)
