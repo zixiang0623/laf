@@ -195,7 +195,7 @@ if(EMSCRIPTEN)
   add_executable(laf-wasm-smoketest wasm/smoketest_main.cpp)
   target_link_libraries(laf-wasm-smoketest laf-os laf-gfx laf-base)
   set_target_properties(laf-wasm-smoketest PROPERTIES
-    LINK_FLAGS "-sUSE_SDL=2 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0")
+    LINK_FLAGS "-sUSE_SDL=2 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sSINGLE_FILE=1")
 endif()
 
 if(LAF_WITH_TESTS)
