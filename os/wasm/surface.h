@@ -140,19 +140,26 @@ public:
   void drawRect(const gfx::RectF& rc, const os::Paint& paint) override
   {
     gfx::Rect r(int(rc.x), int(rc.y), int(rc.w), int(rc.h));
+    // BlendMode::Clear means "erase to transparent", regardless of
+    // paint.color() -- needed by SpriteSheetTypeface::fromFile(),
+    // which clears a 1px border around each detected glyph. We
+    // don't implement blend modes in general (see file header), but
+    // this one specific case is cheap and has a real caller.
+    const gfx::Color drawColor =
+      (paint.blendMode() == os::BlendMode::Clear ? gfx::ColorNone : paint.color());
     if (paint.style() == os::Paint::Fill || paint.style() == os::Paint::StrokeAndFill) {
       for (int y = r.y; y < r.y + r.h; ++y)
         for (int x = r.x; x < r.x + r.w; ++x)
-          putPixel(paint.color(), x, y);
+          putPixel(drawColor, x, y);
     }
     else { // Stroke: outline only
       for (int x = r.x; x < r.x + r.w; ++x) {
-        putPixel(paint.color(), x, r.y);
-        putPixel(paint.color(), x, r.y + r.h - 1);
+        putPixel(drawColor, x, r.y);
+        putPixel(drawColor, x, r.y + r.h - 1);
       }
       for (int y = r.y; y < r.y + r.h; ++y) {
-        putPixel(paint.color(), r.x, y);
-        putPixel(paint.color(), r.x + r.w - 1, y);
+        putPixel(drawColor, r.x, y);
+        putPixel(drawColor, r.x + r.w - 1, y);
       }
     }
   }

@@ -1,19 +1,28 @@
 // Milestone 1 (base rendering) + milestone 2 (mouse/keyboard/window
-// input) + milestone 3 (real Unicode text via SDL_TEXTINPUT/IME):
-// paints a rectangle to prove pixels reach the browser <canvas>,
-// and drains os::EventQueue every frame to prove input flows
-// end-to-end from the browser through SDL2 into os::Event.
-// Deliberately does not link laf-text (fonts are a later
-// milestone), so typed text is only visible via the console for now.
+// input) + milestone 3 (real Unicode text via SDL_TEXTINPUT/IME) +
+// milestone 4 (real font rendering via a sprite-sheet font): paints
+// a rectangle to prove pixels reach the browser <canvas>, drains
+// os::EventQueue every frame to prove input flows end-to-end, and
+// now also decodes a PNG (via loadRgbaSurface(), stb_image-backed)
+// and renders text through text::draw_text() to prove the
+// FontMgr/SpriteSheetFont pipeline works without FreeType/HarfBuzz.
+//
+// The font sheet (wasm_test_font.png) is an original, laf-only test
+// asset -- plain rectangles standing in for glyphs, NOT Aseprite's
+// own aseprite_font.png/theme (those are covered by the EULA's
+// redistribution restrictions and out of scope for a laf smoke
+// test).
 //
 // Visible proof: a small square follows the mouse, the inner
 // panel's color cycles on each click, physical key presses are
-// logged as scancodes, and typed Unicode text (including non-ASCII,
-// if you switch your OS/browser input method) is logged separately
-// and accumulated into a running string.
+// logged as scancodes, typed Unicode text is logged + accumulated,
+// and a row of "glyph" rectangles (proportionally spaced per the
+// typed text's length) is drawn using the real text-layout pipeline.
 
 #include "gfx/rect.h"
 #include "os/os.h"
+#include "text/draw_text.h"
+#include "text/font_mgr.h"
 
 #include <cstdio>
 #include <emscripten.h>
@@ -21,9 +30,11 @@
 
 namespace {
 os::WindowRef g_window;
+text::FontMgrRef g_fontMgr;
+text::FontRef g_font;
 gfx::Point g_mousePos(-100, -100); // off-surface until we get a real move
 int g_clickCount = 0;
-std::string g_typedText;
+std::string g_typedText = "milestone 4";
 }
 
 void main_loop()
@@ -77,18 +88,34 @@ void main_loop()
   paint.color(gfx::rgba(40, 160, 40, 255));
   surf->drawRect(gfx::Rect(g_mousePos.x - 5, g_mousePos.y - 5, 10, 10), paint);
 
+  // Milestone 4: real text layout + glyph blitting, driven by
+  // whatever's been typed so far (starts as "milestone 4").
+  if (g_font) {
+    os::Paint textPaint;
+    textPaint.color(gfx::rgba(20, 20, 20, 255));
+    text::draw_text(surf, g_font, g_typedText, gfx::Point(50, 60), &textPaint);
+  }
+
   g_window->invalidateRegion(gfx::Region(surf->bounds()));
 }
 
 int app_main(int argc, char* argv[])
 {
   os::SystemRef system = os::System::make();
-  system->setAppName("aseprite-wasm-milestone3");
+  system->setAppName("aseprite-wasm-milestone4");
 
   os::WindowSpec spec;
   spec.contentRect(gfx::Rect(0, 0, 400, 300));
   g_window = system->makeWindow(spec);
   g_window->setVisible(true);
+
+  // Milestone 4: FontMgr::Make() gives the "empty" backend (no
+  // Skia/FreeType linked), but loadSpriteSheetFont() is implemented
+  // generically in the base FontMgr and doesn't need either.
+  g_fontMgr = text::FontMgr::Make();
+  g_font = g_fontMgr->loadSpriteSheetFont("wasm_test_font.png", 10);
+  if (!g_font)
+    std::printf("[wasm-milestone4] ERROR: failed to load wasm_test_font.png\n");
 
   emscripten_set_main_loop(main_loop, 0, 1);
   return 0;

@@ -138,8 +138,10 @@ elseif(APPLE)
     # Use Automatic Reference Counting
     -fobjc-arc)
 elseif(EMSCRIPTEN)
-  # Milestone 1: nothing to link, laf-os is built from the "none"
-  # stub only (see LAF_OS_SOURCES above).
+  # Milestone 4: stb_image (public domain, single header) decodes
+  # the PNGs we load via loadRgbaSurface() -- e.g. sprite-sheet
+  # fonts. No Emscripten port needed, no extra libs to link.
+  target_include_directories(laf-os PRIVATE ${CMAKE_SOURCE_DIR}/third_party/stb)
   target_compile_options(laf-os PUBLIC -sUSE_SDL=2)
   target_link_options(laf-os PUBLIC -sUSE_SDL=2)
 else()
@@ -188,14 +190,15 @@ set(LAF_BACKEND_LINK_FLAGS "${_LAF_BACKEND_INITIAL_LINK_FLAGS}"
 mark_as_advanced(LAF_BACKEND_LINK_FLAGS)
 
 if(EMSCRIPTEN)
-  # Milestone 1 smoke test: prove pixels reach an actual browser
-  # <canvas>. Deliberately not using laf_add_example() from
-  # examples/CMakeLists.txt since that always links laf-text
-  # (fonts), which isn't wasm-ready yet.
+  # Milestone 1-4 smoke test: prove pixels reach an actual browser
+  # <canvas>, then input, then real font rendering. Deliberately not
+  # using laf_add_example() from examples/CMakeLists.txt since that
+  # assumes a desktop-style asset layout; we preload our own tiny
+  # synthetic font sheet below instead.
   add_executable(laf-wasm-smoketest wasm/smoketest_main.cpp)
-  target_link_libraries(laf-wasm-smoketest laf-os laf-gfx laf-base)
+  target_link_libraries(laf-wasm-smoketest laf-os laf-text laf-gfx laf-base)
   set_target_properties(laf-wasm-smoketest PROPERTIES
-    LINK_FLAGS "-sUSE_SDL=2 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sSINGLE_FILE=1")
+    LINK_FLAGS "-sUSE_SDL=2 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sSINGLE_FILE=1 --preload-file ${CMAKE_CURRENT_SOURCE_DIR}/wasm/assets/wasm_test_font.png@wasm_test_font.png")
 endif()
 
 if(LAF_WITH_TESTS)
