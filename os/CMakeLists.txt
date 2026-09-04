@@ -141,7 +141,7 @@ elseif(EMSCRIPTEN)
   # Milestone 4: stb_image (public domain, single header) decodes
   # the PNGs we load via loadRgbaSurface() -- e.g. sprite-sheet
   # fonts. No Emscripten port needed, no extra libs to link.
-  target_include_directories(laf-os PRIVATE ${CMAKE_SOURCE_DIR}/third_party/stb)
+  target_include_directories(laf-os PRIVATE ${PROJECT_SOURCE_DIR}/third_party/stb)
   target_compile_options(laf-os PUBLIC -sUSE_SDL=2)
   target_link_options(laf-os PUBLIC -sUSE_SDL=2)
 else()
