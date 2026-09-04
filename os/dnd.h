@@ -68,9 +68,14 @@ class DragDataProvider {
 public:
   virtual ~DragDataProvider() {}
   virtual base::paths getPaths() = 0;
-#if CLIP_ENABLE_IMAGE
-  virtual SurfaceRef getImage() = 0;
-#endif
+  // Not pure virtual: platforms build this out only when
+  // CLIP_ENABLE_IMAGE is on (see os/win/dnd.h, os/osx/dnd.h,
+  // os/x11/dnd.h for the real overrides). Backends built without
+  // image-clipboard support at all (CLIP_ENABLE_IMAGE undefined --
+  // e.g. LAF_WITH_CLIP=OFF, as wasm currently does) still need this
+  // method to exist since app-level code calls it unconditionally;
+  // it just has nothing to return.
+  virtual SurfaceRef getImage() { return nullptr; }
   virtual std::string getUrl() = 0;
   virtual bool contains(DragDataItemType type) { return false; }
 };
