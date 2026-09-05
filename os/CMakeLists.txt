@@ -198,7 +198,7 @@ if(EMSCRIPTEN)
   add_executable(laf-wasm-smoketest wasm/smoketest_main.cpp)
   target_link_libraries(laf-wasm-smoketest laf-os laf-text laf-gfx laf-base)
   set_target_properties(laf-wasm-smoketest PROPERTIES
-    LINK_FLAGS "-sUSE_SDL=2 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sSINGLE_FILE=1 --preload-file ${CMAKE_CURRENT_SOURCE_DIR}/wasm/assets/wasm_test_font.png@wasm_test_font.png")
+    LINK_FLAGS "-sUSE_SDL=2 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sSINGLE_FILE=1 --embed-file ${CMAKE_CURRENT_SOURCE_DIR}/wasm/assets/wasm_test_font.png@wasm_test_font.png")
 endif()
 
 if(LAF_WITH_TESTS)
