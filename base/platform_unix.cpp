@@ -13,6 +13,7 @@
 #include "base/file_handle.h"
 
 #include <cstdio>
+#include <map>
 
 namespace base {
 
