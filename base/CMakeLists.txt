@@ -118,6 +118,14 @@ else()
     find_library(FOUNDATION_LIBRARY Foundation)
     target_compile_definitions(laf-base PUBLIC LAF_MACOS)
     target_link_libraries(laf-base ${FOUNDATION_LIBRARY})
+  elseif(EMSCRIPTEN)
+    # Emscripten is UNIX-like enough that the generic POSIX
+    # fallbacks (fs.cpp/process.cpp's "#else" branches) work fine,
+    # but it is NOT Linux -- code gated on LAF_LINUX specifically
+    # (X11, /proc, etc.) doesn't apply and shouldn't be pulled in.
+    # No pthread here either: Emscripten's threads need an explicit
+    # -pthread/-sUSE_PTHREADS=1 opt-in we're not making yet.
+    target_compile_definitions(laf-base PUBLIC LAF_WASM)
   else()
     target_compile_definitions(laf-base PUBLIC LAF_LINUX)
     target_link_libraries(laf-base pthread)
