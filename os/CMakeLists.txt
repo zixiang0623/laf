@@ -184,6 +184,15 @@ if(MSVC)
   else()
     set(_LAF_BACKEND_INITIAL_LINK_FLAGS "-LINK wsetargv.obj -ENTRY:\"wmainCRTStartup\"")
   endif()
+elseif(EMSCRIPTEN)
+  # Milestone 6: ui::Manager::run() (and other laf/app code) has
+  # real blocking loops -- ASYNCIFY lets Emscripten transform them
+  # to cooperatively yield back to the browser's event loop instead
+  # of freezing the tab, without a full rewrite into a callback
+  # style. Paired with an emscripten_sleep(0) yield point inside
+  # Manager::run()'s loop (see src/ui/manager.cpp).
+  set(_LAF_BACKEND_INITIAL_LINK_FLAGS
+    "-sUSE_SDL=2 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sASYNCIFY=1")
 endif()
 set(LAF_BACKEND_LINK_FLAGS "${_LAF_BACKEND_INITIAL_LINK_FLAGS}"
   CACHE STRING "Extra flags to link an application that uses laf-os")
