@@ -8,6 +8,13 @@ if(WIN32)
   target_sources(laf-dlgs PRIVATE win/file_dialog_win.cpp)
 elseif(APPLE)
   target_sources(laf-dlgs PRIVATE file_dialog_osx.mm)
+elseif(EMSCRIPTEN)
+  # No native file dialog backend yet -- FileDialog::make() already
+  # falls back to returning nullptr for anything that isn't
+  # Windows/macOS/Linux (see file_dialog.cpp), which is the right
+  # behavior for now. A real implementation would need something
+  # fundamentally different anyway (an HTML <input type=file>
+  # picker driven from JS, not a blocking native dialog call).
 else()
   target_sources(laf-dlgs PRIVATE file_dialog_x11.cpp)
 endif()
