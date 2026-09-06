@@ -50,6 +50,10 @@ private:
   // Called for each worker thread.
   void worker();
 
+#if LAF_WASM
+  // Nothing to join under the synchronous fallback below.
+  std::vector<work_ptr> m_finished;
+#endif
   bool m_running;
   std::vector<std::thread> m_threads;
   std::mutex m_mutex;
