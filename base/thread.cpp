@@ -103,6 +103,11 @@ void this_thread::set_name(const std::string& name)
   if (res != 0 && name.size() > 63) {
     pthread_setname_np(name.substr(0, 63).c_str());
   }
+#elif LAF_WASM
+  // Single-threaded (no -pthread/-sUSE_PTHREADS=1 opt-in yet) --
+  // pthread_setname_np() isn't even linkable, and naming a thread
+  // wouldn't mean much here anyway.
+  (void)name;
 #else
   const int res = pthread_setname_np(pthread_self(), name.c_str());
   if (res != 0 && name.size() > 15) {
@@ -125,6 +130,8 @@ std::string this_thread::get_name()
       return result;
     }
   }
+#elif LAF_WASM
+  // See this_thread::set_name() -- no pthread naming under wasm.
 #else
   char name[65];
   const int result = pthread_getname_np(pthread_self(), name, sizeof(name) - 1);
